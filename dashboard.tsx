@@ -112,6 +112,13 @@ export default function Dashboard() {
     { name: "Thrombophilia", value2023: 0.2, value2024: 0.2, icon: AlertCircle },
   ]
 
+  // Transform data for vertical bar chart
+  const riskFactorsForChart = riskFactors.slice(0, 7).map(factor => ({
+    name: factor.name.length > 15 ? factor.name.substring(0, 15) + "..." : factor.name,
+    "2023": factor.value2023,
+    "2024": factor.value2024
+  }))
+
   // Monthly trends data
   const monthlyTrends = [
     { month: "Jan", screening: 87, treatment: 85, referrals: 12 },
@@ -707,24 +714,26 @@ export default function Dashboard() {
 
         {selectedTab === "risk-factors" && (
           <div className="space-y-8">
-            {/* Risk Factors Distribution */}
+            {/* Risk Factors Distribution - CHANGED TO VERTICAL BAR CHART */}
             <div className="glass-effect rounded-2xl p-8 animate-fadeInUp">
               <h3 className="text-2xl font-bold text-gray-800 mb-6">Risk Factors Distribution</h3>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={riskFactors.slice(0, 7)} layout="horizontal">
-                  <defs>
-                    <linearGradient id="riskGrad2023" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#3498DB" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#2980B9" stopOpacity={0.9} />
-                    </linearGradient>
-                    <linearGradient id="riskGrad2024" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#1ABC9C" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#16A085" stopOpacity={0.9} />
-                    </linearGradient>
-                  </defs>
+                <BarChart 
+                  data={riskFactorsForChart}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-                  <XAxis type="number" domain={[0, 35]} tick={{ fill: "#4A5568" }} />
-                  <YAxis dataKey="name" type="category" tick={{ fill: "#4A5568" }} width={120} />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fill: "#4A5568", fontSize: 11 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                  />
+                  <YAxis 
+                    tick={{ fill: "#4A5568" }}
+                    label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }}
+                  />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "rgba(255, 255, 255, 0.9)",
@@ -732,21 +741,24 @@ export default function Dashboard() {
                       borderRadius: "8px",
                       color: "#333",
                     }}
-                    formatter={(value) => [`${value}%`, ""]}
+                    formatter={(value) => `${value}%`}
                   />
                   <Legend wrapperStyle={{ color: "#4A5568" }} />
-                  <Bar dataKey="value2023" name="2023" radius={[0, 8, 8, 0]}>
-                    {riskFactors.slice(0, 7).map((entry, index) => (
-                      <Cell key={`cell-2023-${index}`} fill="url(#riskGrad2023)" />
-                    ))}
-                  </Bar>
-                  <Bar dataKey="value2024" name="2024" radius={[0, 8, 8, 0]}>
-                    {riskFactors.slice(0, 7).map((entry, index) => (
-                      <Cell key={`cell-2024-${index}`} fill="url(#riskGrad2024)" />
-                    ))}
-                  </Bar>
+                  <Bar 
+                    dataKey="2023" 
+                    fill="#3498DB"
+                    radius={[8, 8, 0, 0]}
+                  />
+                  <Bar 
+                    dataKey="2024" 
+                    fill="#1ABC9C"
+                    radius={[8, 8, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
+              <p className="text-gray-700 mt-4 text-center text-sm">
+                Top 7 risk factors shown. Previous pregnancy, age ≥35 years, and BMI ≥30 are the most prevalent risk factors.
+              </p>
             </div>
 
             {/* Risk Factor Categories */}
