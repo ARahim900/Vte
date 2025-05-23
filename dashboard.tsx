@@ -112,6 +112,13 @@ export default function Dashboard() {
     { name: "Thrombophilia", value2023: 0.2, value2024: 0.2, icon: AlertCircle },
   ]
 
+  // Transform data for vertical bar chart
+  const riskFactorsForChart = riskFactors.slice(0, 7).map(factor => ({
+    name: factor.name.length > 15 ? factor.name.substring(0, 15) + "..." : factor.name,
+    "2023": factor.value2023,
+    "2024": factor.value2024
+  }))
+
   // Monthly trends data
   const monthlyTrends = [
     { month: "Jan", screening: 87, treatment: 85, referrals: 12 },
@@ -707,27 +714,25 @@ export default function Dashboard() {
 
         {selectedTab === "risk-factors" && (
           <div className="space-y-8">
-            {/* Risk Factors Distribution - COMPLETELY REWRITTEN */}
+            {/* Risk Factors Distribution - CHANGED TO VERTICAL BAR CHART */}
             <div className="glass-effect rounded-2xl p-8 animate-fadeInUp">
               <h3 className="text-2xl font-bold text-gray-800 mb-6">Risk Factors Distribution</h3>
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart 
-                  data={riskFactors.slice(0, 7)} 
-                  layout="horizontal"
-                  margin={{ left: 150, right: 30, top: 20, bottom: 20 }}
+                  data={riskFactorsForChart}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
                   <XAxis 
-                    type="number" 
-                    domain={[0, 35]} 
-                    tick={{ fill: "#4A5568" }}
-                    tickFormatter={(value) => `${value}%`}
+                    dataKey="name" 
+                    tick={{ fill: "#4A5568", fontSize: 11 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
                   />
                   <YAxis 
-                    dataKey="name" 
-                    type="category" 
-                    tick={{ fill: "#4A5568", fontSize: 12 }}
-                    width={140}
+                    tick={{ fill: "#4A5568" }}
+                    label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft' }}
                   />
                   <Tooltip
                     contentStyle={{
@@ -740,21 +745,20 @@ export default function Dashboard() {
                   />
                   <Legend wrapperStyle={{ color: "#4A5568" }} />
                   <Bar 
-                    dataKey="value2023" 
-                    name="2023" 
+                    dataKey="2023" 
                     fill="#3498DB"
-                    radius={[0, 8, 8, 0]}
-                    barSize={20}
+                    radius={[8, 8, 0, 0]}
                   />
                   <Bar 
-                    dataKey="value2024" 
-                    name="2024" 
+                    dataKey="2024" 
                     fill="#1ABC9C"
-                    radius={[0, 8, 8, 0]}
-                    barSize={20}
+                    radius={[8, 8, 0, 0]}
                   />
                 </BarChart>
               </ResponsiveContainer>
+              <p className="text-gray-700 mt-4 text-center text-sm">
+                Top 7 risk factors shown. Previous pregnancy, age ≥35 years, and BMI ≥30 are the most prevalent risk factors.
+              </p>
             </div>
 
             {/* Risk Factor Categories */}
