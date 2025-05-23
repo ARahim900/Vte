@@ -707,24 +707,28 @@ export default function Dashboard() {
 
         {selectedTab === "risk-factors" && (
           <div className="space-y-8">
-            {/* Risk Factors Distribution - FIXED */}
+            {/* Risk Factors Distribution - COMPLETELY REWRITTEN */}
             <div className="glass-effect rounded-2xl p-8 animate-fadeInUp">
               <h3 className="text-2xl font-bold text-gray-800 mb-6">Risk Factors Distribution</h3>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={riskFactors.slice(0, 7)} layout="horizontal" margin={{ left: 150, right: 30, top: 20, bottom: 20 }}>
-                  <defs>
-                    <linearGradient id="riskGrad2023" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#3498DB" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#2980B9" stopOpacity={0.9} />
-                    </linearGradient>
-                    <linearGradient id="riskGrad2024" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#1ABC9C" stopOpacity={0.9} />
-                      <stop offset="100%" stopColor="#16A085" stopOpacity={0.9} />
-                    </linearGradient>
-                  </defs>
+                <BarChart 
+                  data={riskFactors.slice(0, 7)} 
+                  layout="horizontal"
+                  margin={{ left: 150, right: 30, top: 20, bottom: 20 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-                  <XAxis type="number" domain={[0, 35]} tick={{ fill: "#4A5568" }} />
-                  <YAxis dataKey="name" type="category" tick={{ fill: "#4A5568", fontSize: 12 }} />
+                  <XAxis 
+                    type="number" 
+                    domain={[0, 35]} 
+                    tick={{ fill: "#4A5568" }}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    tick={{ fill: "#4A5568", fontSize: 12 }}
+                    width={140}
+                  />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "rgba(255, 255, 255, 0.9)",
@@ -732,11 +736,23 @@ export default function Dashboard() {
                       borderRadius: "8px",
                       color: "#333",
                     }}
-                    formatter={(value) => [`${value}%`, ""]}
+                    formatter={(value) => `${value}%`}
                   />
                   <Legend wrapperStyle={{ color: "#4A5568" }} />
-                  <Bar dataKey="value2023" name="2023" fill="#3498DB" radius={[0, 8, 8, 0]} />
-                  <Bar dataKey="value2024" name="2024" fill="#1ABC9C" radius={[0, 8, 8, 0]} />
+                  <Bar 
+                    dataKey="value2023" 
+                    name="2023" 
+                    fill="#3498DB"
+                    radius={[0, 8, 8, 0]}
+                    barSize={20}
+                  />
+                  <Bar 
+                    dataKey="value2024" 
+                    name="2024" 
+                    fill="#1ABC9C"
+                    radius={[0, 8, 8, 0]}
+                    barSize={20}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
