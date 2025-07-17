@@ -19,7 +19,7 @@ const RiskFactorAge: React.FC = () => {
     { ageGroup: '18-30', count: 156, percentage: 12.5, riskLevel: 'Low' },
     { ageGroup: '31-45', count: 324, percentage: 26.0, riskLevel: 'Medium' },
     { ageGroup: '46-60', count: 421, percentage: 33.8, riskLevel: 'High' },
-    { ageGroup: '61-75', count: 286, percentage: 22.9, riskLevel: High' },
+    { ageGroup: '61-75', count: 286, percentage: 22.9, riskLevel: 'High' },
     { ageGroup: '76+', count: 60, percentage: 4.8, riskLevel: 'Medium' },
   ];
 
