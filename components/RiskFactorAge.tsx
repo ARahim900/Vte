@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,26 +13,17 @@ interface RiskFactorData {
 
 const RiskFactorAge: React.FC = () => {
   const [selectedAgeGroup, setSelectedAgeGroup] = useState<string>('');
-  const [totalPatients] = useState<number>(1247);
+  const totalPatients = 1247;
 
   const riskFactorData: RiskFactorData[] = [
     { ageGroup: '18-30', count: 156, percentage: 12.5, riskLevel: 'Low' },
     { ageGroup: '31-45', count: 324, percentage: 26.0, riskLevel: 'Medium' },
     { ageGroup: '46-60', count: 421, percentage: 33.8, riskLevel: 'High' },
-    { ageGroup: '61-75', count: 286, percentage: 22.9, riskLevel: 'High' },
+    { ageGroup: '61-75', count: 286, percentage: 22.9, riskLevel: High' },
     { ageGroup: '76+', count: 60, percentage: 4.8, riskLevel: 'Medium' },
   ];
 
-  const getRiskColor = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'Low': return '#10b981';
-      case 'Medium': return '#f59e0b';
-      case 'High': return '#ef4444';
-      default: return '#6b7280';
-    }
-  };
-
-  const getBadgeVariant = (riskLevel: string) => {
+  const getBadgeVariant = (riskLevel: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (riskLevel) {
       case 'Low': return 'default';
       case 'Medium': return 'secondary';
@@ -98,7 +89,7 @@ const RiskFactorAge: React.FC = () => {
                   dataKey="count"
                   onClick={handleBarClick}
                   cursor="pointer"
-                  fill={(entry: any) => getRiskColor(entry.riskLevel)}
+                  fill="#3b82f6"
                 />
               </BarChart>
             </ResponsiveContainer>
