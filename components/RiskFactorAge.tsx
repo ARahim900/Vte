@@ -1,10 +1,3 @@
-Step 1: Go to this URL in your browser:
-https://github.com/ARahim900/Vte/edit/main/components/RiskFactorAge.tsx
-
-Step 2: Select all content (Ctrl+A or Cmd+A) and DELETE everything
-
-Step 3: Copy and paste this EXACT code:
-
 import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { 
@@ -160,9 +153,3 @@ export const RiskFactorAge: React.FC = () => {
     </div>
   );
 };
-
-Step 4: Scroll down and click "Commit changes"
-Step 5: Add commit message: "Fix: Remove all unused imports and fix TypeScript errors"
-Step 6: Click "Commit changes" button
-
-DONE! Your Netlify deployment will work after this!
