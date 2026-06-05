@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, type KeyboardEvent, type ReactNode } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import Image from "next/image"
 import { useTheme } from "next-themes"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -43,6 +43,15 @@ import {
   Stethoscope,
   ShieldAlert,
 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import {
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
+} from "@/components/ui/navigation-menu"
 
 // Theme-aware chart colors resolved from CSS design tokens at runtime,
 // re-read whenever the active theme changes so charts work in light & dark.
@@ -68,6 +77,11 @@ interface ChartColors {
   tipBg: string
   tipBorder: string
   tipText: string
+  tipShadow: string
+  // Hover-cursor colours: a soft brand-tinted band behind hovered bars and a
+  // faint hairline for line/area charts — replaces Recharts' harsh grey block.
+  cursorFill: string
+  cursorLine: string
   // Severity tokens (resolved alongside the chart sequence) so severity
   // encoding tracks light/dark exactly like the chart series does.
   success: string
@@ -88,10 +102,13 @@ const FALLBACK_CHART: ChartColors = {
   c6: "hsl(150 50% 38%)",
   c7: "hsl(40 60% 42%)",
   axis: "hsl(220 9% 42%)",
-  grid: "hsl(210 24% 88%)",
+  grid: "hsl(210 24% 88% / 0.45)",
   tipBg: "hsl(0 0% 100%)",
   tipBorder: "hsl(210 24% 88%)",
   tipText: "hsl(204 34% 15%)",
+  tipShadow: "hsl(204 34% 15% / 0.16)",
+  cursorFill: "hsl(198 59% 30% / 0.08)",
+  cursorLine: "hsl(198 59% 30% / 0.35)",
   success: "hsl(150 55% 34%)",
   successSoft: "hsl(150 50% 93%)",
   warning: "hsl(38 78% 36%)",
@@ -443,18 +460,92 @@ interface TabConfig {
   id: string
   label: string
   icon: typeof FileText
+  description: string
 }
 
-// Tab configurations
-const tabs: TabConfig[] = [
-  { id: "executive", label: "Executive Summary", icon: FileText },
-  { id: "demographics", label: "Demographics", icon: Users },
-  { id: "risk-center", label: "VTE Risk by Center", icon: BarChart3 },
-  { id: "risk-factors", label: "Risk Factors", icon: AlertCircle },
-  { id: "treatment", label: "Treatment & Medication", icon: Syringe },
-  { id: "recommendations", label: "Recommendations", icon: Target },
-  { id: "wch", label: "Women & Child Health", icon: Baby },
+// Top-level data domains. Each owns a period (its real data coverage) and a set
+// of section sub-tabs. The VTE study and the WCH KPIs are separate datasets, so
+// they live under separate domains rather than one flat tab row.
+interface NavGroup {
+  id: string
+  label: string
+  period: string
+  children: TabConfig[]
+}
+
+const navGroups: NavGroup[] = [
+  {
+    id: "vte",
+    label: "VTE Risk Study",
+    period: "2023–2024",
+    children: [
+      {
+        id: "executive",
+        label: "Executive Summary",
+        icon: FileText,
+        description: "Cohort size, key totals, and data sources at a glance.",
+      },
+      {
+        id: "demographics",
+        label: "Demographics",
+        icon: Users,
+        description: "Maternal age and trimester distribution of the cohort.",
+      },
+      {
+        id: "risk-center",
+        label: "VTE Risk by Center",
+        icon: BarChart3,
+        description: "Risk percentages across the seven health centers.",
+      },
+      {
+        id: "risk-factors",
+        label: "Risk Factors",
+        icon: AlertCircle,
+        description: "Prevalence of each assessed VTE risk factor.",
+      },
+      {
+        id: "treatment",
+        label: "Treatment & Medication",
+        icon: Syringe,
+        description: "LMWH prophylaxis coverage and medication use.",
+      },
+      {
+        id: "recommendations",
+        label: "Recommendations",
+        icon: Target,
+        description: "Clinical and data-quality actions from the analysis.",
+      },
+    ],
+  },
+  {
+    id: "wch",
+    label: "Women & Child Health",
+    period: "2019–2025",
+    children: [
+      {
+        id: "wch-maternal",
+        label: "Maternal Health",
+        icon: Stethoscope,
+        description: "ANC bookings, first-trimester registration, anemia and GDM.",
+      },
+      {
+        id: "wch-family",
+        label: "Family Planning & Screening",
+        icon: Shield,
+        description: "Long-acting contraception uptake and premarital screening.",
+      },
+      {
+        id: "wch-child",
+        label: "Child Health",
+        icon: Baby,
+        description: "ASD developmental screening and child safeguarding.",
+      },
+    ],
+  },
 ]
+
+// Flattened view of every section, for id → section lookups.
+const allTabs: TabConfig[] = navGroups.flatMap((g) => g.children)
 
 // Animated counter effect — hoisted to module scope so it isn't redefined
 // on every Dashboard render. Honors prefers-reduced-motion and cleans up its
@@ -531,6 +622,9 @@ export default function Dashboard() {
     if (typeof window === "undefined") return
     const cs = getComputedStyle(document.documentElement)
     const hsl = (name: string) => `hsl(${cs.getPropertyValue(name).trim()})`
+    // Same token, dialled down with an alpha channel — used for the recessive
+    // grid lines and the translucent hover cursor.
+    const hslA = (name: string, a: number) => `hsl(${cs.getPropertyValue(name).trim()} / ${a})`
     setChart({
       c1: hsl("--chart-1"),
       c2: hsl("--chart-2"),
@@ -540,10 +634,13 @@ export default function Dashboard() {
       c6: hsl("--chart-6"),
       c7: hsl("--chart-7"),
       axis: hsl("--muted-foreground"),
-      grid: hsl("--border"),
+      grid: hslA("--border", 0.45),
       tipBg: hsl("--popover"),
       tipBorder: hsl("--border"),
       tipText: hsl("--popover-foreground"),
+      tipShadow: hslA("--foreground", 0.18),
+      cursorFill: hslA("--primary", 0.1),
+      cursorLine: hslA("--primary", 0.35),
       success: hsl("--success"),
       successSoft: hsl("--success-soft"),
       warning: hsl("--warning"),
@@ -557,8 +654,18 @@ export default function Dashboard() {
   const tooltipStyle = {
     backgroundColor: chart.tipBg,
     border: `1px solid ${chart.tipBorder}`,
-    borderRadius: "8px",
+    borderRadius: "12px",
     color: chart.tipText,
+    boxShadow: `0 10px 30px -10px ${chart.tipShadow}`,
+    padding: "10px 14px",
+  }
+  // One cursor object for every cartesian chart. Bar charts render it as a
+  // Rectangle (uses `fill` — a soft brand band), line/area charts render it as
+  // a vertical hairline (uses `stroke`). Replaces Recharts' default grey block.
+  const chartCursor = {
+    fill: chart.cursorFill,
+    stroke: chart.cursorLine,
+    strokeWidth: 1,
   }
   const axisTick = { fill: chart.axis, fontSize: 12 }
 
@@ -574,36 +681,11 @@ export default function Dashboard() {
   // Shared mobile legend styling (token-coloured, matches every other Legend).
   const mobileLegendStyle = { color: chart.axis, fontSize: 12 }
 
-  // Roving-tabindex keyboard navigation for the tablist: Left/Right move
-  // between tabs, Home/End jump to the first/last, and focus follows selection.
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
-
-  const focusTab = (tabId: string) => {
-    setSelectedTab(tabId)
-    tabRefs.current[tabId]?.focus()
-  }
-
-  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    let nextIndex: number | null = null
-    switch (event.key) {
-      case "ArrowRight":
-        nextIndex = (index + 1) % tabs.length
-        break
-      case "ArrowLeft":
-        nextIndex = (index - 1 + tabs.length) % tabs.length
-        break
-      case "Home":
-        nextIndex = 0
-        break
-      case "End":
-        nextIndex = tabs.length - 1
-        break
-      default:
-        return
-    }
-    event.preventDefault()
-    focusTab(tabs[nextIndex].id)
-  }
+  // The domain that owns the currently-selected section, and the section itself.
+  // Both are derived from selectedTab so there's a single source of truth — the
+  // NavigationMenu and the breadcrumb stay in sync with whatever panel is shown.
+  const activeGroup = navGroups.find((g) => g.children.some((c) => c.id === selectedTab)) ?? navGroups[0]
+  const activeTab = allTabs.find((t) => t.id === selectedTab) ?? allTabs[0]
 
   // Custom MetricCard component
   const MetricCard = ({
@@ -679,7 +761,7 @@ export default function Dashboard() {
               <div className="min-w-0">
                 <h1 className="text-2xl font-bold text-foreground">Maternal VTE Risk Assessment Report</h1>
                 <p className="text-muted-foreground text-sm">
-                  North Batinah Region - Sohar Wilayate Health Centers (2023-2024)
+                  North Batinah Region · Sohar Wilayat Health Centers · VTE 2023–2024 · Women &amp; Child Health KPIs 2019–2025
                 </p>
               </div>
             </div>
@@ -695,42 +777,63 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Navigation Tabs */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-        <div className="flex space-x-2 overflow-x-auto pb-2" role="tablist" aria-label="Report sections">
-          {tabs.map((tab, index) => (
-            <button
-              key={tab.id}
-              ref={(el) => {
-                tabRefs.current[tab.id] = el
-              }}
-              role="tab"
-              aria-selected={selectedTab === tab.id}
-              aria-controls={`panel-${tab.id}`}
-              id={`tab-${tab.id}`}
-              tabIndex={selectedTab === tab.id ? 0 : -1}
-              onClick={() => setSelectedTab(tab.id)}
-              onKeyDown={(event) => handleTabKeyDown(event, index)}
-              className={`flex items-center min-h-[44px] px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300
-                         whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring
-                         focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                           selectedTab === tab.id
-                             ? "bg-primary text-primary-foreground shadow-sm"
-                             : "bg-card text-muted-foreground hover:text-foreground hover:bg-muted border border-border"
-                         }`}
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <tab.icon className="w-4 h-4 mr-2" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Primary navigation: a shadcn NavigationMenu with one dropdown per data
+          domain. Each menu item activates a section panel (SPA state, not routes). */}
+      <nav
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 flex flex-wrap items-center gap-x-4 gap-y-3"
+        aria-label="Report navigation"
+      >
+        <NavigationMenu>
+          <NavigationMenuList className="gap-2">
+            {navGroups.map((group) => (
+                <NavigationMenuItem key={group.id}>
+                  {/* Both domain triggers are identical outlined dropdown buttons —
+                      card surface, border, shadow, and a chevron so they clearly
+                      read as openable. Hover/focus/open reveals a teal-tinted fill. */}
+                  <NavigationMenuTrigger className="h-auto flex-col items-start gap-0.5 rounded-xl border border-border bg-card px-4 py-2.5 text-foreground shadow-sm transition-all hover:border-primary hover:bg-primary/10 hover:text-primary hover:shadow-md focus:border-primary focus:bg-primary/10 focus:text-primary data-[state=open]:border-primary data-[state=open]:bg-primary/10 data-[state=open]:text-primary data-[state=open]:shadow-md">
+                    <span className="text-sm font-semibold leading-tight">{group.label}</span>
+                    <span className="text-xs font-medium leading-tight text-muted-foreground">{group.period}</span>
+                  </NavigationMenuTrigger>
+                  <NavigationMenuContent>
+                    <ul className="grid w-[340px] gap-1 p-3 sm:w-[460px] sm:grid-cols-2">
+                      {group.children.map((section) => {
+                        const selected = selectedTab === section.id
+                        const Icon = section.icon
+                        return (
+                          <li key={section.id}>
+                            <NavigationMenuLink asChild active={selected}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTab(section.id)}
+                                className={cn(
+                                  "flex w-full select-none flex-col items-start gap-1 rounded-lg p-3 text-left leading-none no-underline outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring",
+                                  selected && "bg-muted"
+                                )}
+                              >
+                                <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                                  <Icon className="h-4 w-4 text-primary" />
+                                  {section.label}
+                                </span>
+                                <span className="line-clamp-2 text-xs leading-snug text-muted-foreground">
+                                  {section.description}
+                                </span>
+                              </button>
+                            </NavigationMenuLink>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </NavigationMenuContent>
+                </NavigationMenuItem>
+            ))}
+          </NavigationMenuList>
+        </NavigationMenu>
+      </nav>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {selectedTab === "executive" && (
-          <div className="space-y-8" role="tabpanel" id="panel-executive" aria-labelledby="tab-executive">
+          <div className="space-y-8" role="region" id="panel-executive" aria-label="Executive Summary">
             {/* Study Overview */}
             <section className="animate-fadeInUp">
               <h2 className="text-2xl font-bold text-foreground mb-3">Study Overview</h2>
@@ -823,7 +926,7 @@ export default function Dashboard() {
                         <stop offset="95%" stopColor={chart.c2} stopOpacity={0.4} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                    <CartesianGrid vertical={false} stroke={chart.grid} />
                     <XAxis
                       dataKey="name"
                       angle={-45}
@@ -833,7 +936,7 @@ export default function Dashboard() {
                       interval={0}
                     />
                     <YAxis tick={axisTick} />
-                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                     <Legend wrapperStyle={{ color: chart.axis }} />
                     <Bar dataKey="risk2023" fill="url(#colorGradient2023)" name="2023" radius={[8, 8, 0, 0]} />
                     <Bar dataKey="risk2024" fill="url(#colorGradient2024)" name="2024" radius={[8, 8, 0, 0]} />
@@ -905,7 +1008,7 @@ export default function Dashboard() {
         )}
 
         {selectedTab === "demographics" && (
-          <div className="space-y-8" role="tabpanel" id="panel-demographics" aria-labelledby="tab-demographics">
+          <div className="space-y-8" role="region" id="panel-demographics" aria-label="Demographics">
             {/* Age Distribution */}
             <section className="animate-fadeInUp">
               <h2 className="text-2xl font-bold text-foreground mb-3">Age Distribution</h2>
@@ -926,10 +1029,10 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor={chart.c2} stopOpacity={0.4} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <CartesianGrid vertical={false} stroke={chart.grid} />
                   <XAxis dataKey="age" tick={axisTick} />
                   <YAxis tick={axisTick} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                   <Legend wrapperStyle={{ color: chart.axis }} />
                   <Bar dataKey="value2023" fill="url(#ageGrad2023)" name="2023" radius={[8, 8, 0, 0]} />
                   <Bar dataKey="value2024" fill="url(#ageGrad2024)" name="2024" radius={[8, 8, 0, 0]} />
@@ -967,10 +1070,10 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor={chart.c2} stopOpacity={0.2} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <CartesianGrid vertical={false} stroke={chart.grid} />
                   <XAxis dataKey="trimester" tick={axisTick} />
                   <YAxis tick={axisTick} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                   <Legend wrapperStyle={{ color: chart.axis }} />
                   <Area
                     type="monotone"
@@ -1005,7 +1108,7 @@ export default function Dashboard() {
         )}
 
         {selectedTab === "risk-center" && (
-          <div className="space-y-8" role="tabpanel" id="panel-risk-center" aria-labelledby="tab-risk-center">
+          <div className="space-y-8" role="region" id="panel-risk-center" aria-label="VTE Risk by Center">
             {/* Risk Trend Chart */}
             <section className="animate-fadeInUp">
               <h2 className="text-2xl font-bold text-foreground mb-3">VTE Risk by Center</h2>
@@ -1016,7 +1119,7 @@ export default function Dashboard() {
               >
               <ResponsiveContainer width="100%" height={tallChartH}>
                 <LineChart data={healthCenters}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <CartesianGrid vertical={false} stroke={chart.grid} />
                   <XAxis
                     dataKey="name"
                     angle={-45}
@@ -1026,7 +1129,7 @@ export default function Dashboard() {
                     interval={0}
                   />
                   <YAxis tick={axisTick} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                   <Legend wrapperStyle={{ color: chart.axis }} />
                   <Line
                     type="monotone"
@@ -1175,7 +1278,7 @@ export default function Dashboard() {
         )}
 
         {selectedTab === "risk-factors" && (
-          <div className="space-y-8" role="tabpanel" id="panel-risk-factors" aria-labelledby="tab-risk-factors">
+          <div className="space-y-8" role="region" id="panel-risk-factors" aria-label="Risk Factors">
             {/* Risk Factors Distribution */}
             <section className="animate-fadeInUp">
               <h2 className="text-2xl font-bold text-foreground mb-3">Risk Factors Distribution</h2>
@@ -1203,10 +1306,10 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor={chart.c2} stopOpacity={0.4} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <CartesianGrid vertical={false} stroke={chart.grid} />
                   <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} interval={0} tick={axisTick} />
                   <YAxis tick={axisTick} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                   <Legend wrapperStyle={{ color: chart.axis }} />
                   <Bar dataKey="year2023" fill="url(#riskFactorGrad2023)" name="2023" radius={[8, 8, 0, 0]} />
                   <Bar dataKey="year2024" fill="url(#riskFactorGrad2024)" name="2024" radius={[8, 8, 0, 0]} />
@@ -1342,7 +1445,7 @@ export default function Dashboard() {
         )}
 
         {selectedTab === "treatment" && (
-          <div className="space-y-8" role="tabpanel" id="panel-treatment" aria-labelledby="tab-treatment">
+          <div className="space-y-8" role="region" id="panel-treatment" aria-label="Treatment & Medication">
             <h2 className="sr-only">Treatment &amp; Medication</h2>
             {/* Treatment Coverage Comparison */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1442,10 +1545,10 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor={chart.c2} stopOpacity={0.2} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                  <CartesianGrid vertical={false} stroke={chart.grid} />
                   <XAxis dataKey="month" tick={axisTick} />
                   <YAxis tick={axisTick} />
-                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                  <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                   <Legend wrapperStyle={{ color: chart.axis }} />
                   <Area
                     type="monotone"
@@ -1535,7 +1638,7 @@ export default function Dashboard() {
         )}
 
         {selectedTab === "recommendations" && (
-          <div className="space-y-8" role="tabpanel" id="panel-recommendations" aria-labelledby="tab-recommendations">
+          <div className="space-y-8" role="region" id="panel-recommendations" aria-label="Recommendations">
             <h2 className="text-3xl font-bold text-foreground mb-2 animate-fadeInUp">Key Recommendations</h2>
 
             {/* Recommendations Grid */}
@@ -1653,8 +1756,13 @@ export default function Dashboard() {
           </div>
         )}
 
-        {selectedTab === "wch" && (
-          <div className="space-y-8" role="tabpanel" id="panel-wch" aria-labelledby="tab-wch">
+        {activeGroup.id === "wch" && (
+          <div
+            className="space-y-8"
+            role="region"
+            id={`panel-${selectedTab}`}
+            aria-label={`${activeGroup.label} — ${activeTab.label}`}
+          >
             <div>
               <h2 className="text-2xl font-bold text-foreground">Women &amp; Child Health KPIs</h2>
               <p className="text-muted-foreground text-sm mt-1">
@@ -1725,6 +1833,8 @@ export default function Dashboard() {
               />
             </div>
 
+            {selectedTab === "wch-maternal" && (
+              <>
             {/* Antenatal care */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="surface-panel surface-panel-hero rounded-2xl p-6 animate-fadeInUp">
@@ -1732,10 +1842,10 @@ export default function Dashboard() {
                 <figure role="group" aria-label="Total antenatal care bookings per year, 2019 to 2025">
                   <ResponsiveContainer width="100%" height={barChartH}>
                     <BarChart data={ancBookingTrend} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                      <CartesianGrid vertical={false} stroke={chart.grid} />
                       <XAxis dataKey="year" tick={axisTick} />
                       <YAxis tick={axisTick} />
-                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                       <Bar dataKey="value" fill={chart.c1} name="ANC bookings" radius={[8, 8, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -1758,10 +1868,10 @@ export default function Dashboard() {
                           <stop offset="95%" stopColor={chart.c4} stopOpacity={0.15} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                      <CartesianGrid vertical={false} stroke={chart.grid} />
                       <XAxis dataKey="year" tick={axisTick} />
                       <YAxis domain={[70, 100]} tick={axisTick} />
-                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                       <Area
                         type="monotone"
                         dataKey="value"
@@ -1787,10 +1897,10 @@ export default function Dashboard() {
               <figure role="group" aria-label="Anemia in pregnancy and gestational diabetes percentages per year">
                 <ResponsiveContainer width="100%" height={areaChartH}>
                   <LineChart data={maternalIndicators} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                    <CartesianGrid vertical={false} stroke={chart.grid} />
                     <XAxis dataKey="year" tick={axisTick} />
                     <YAxis tick={axisTick} />
-                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                     <Legend wrapperStyle={{ color: chart.axis }} />
                     <Line
                       type="monotone"
@@ -1819,6 +1929,11 @@ export default function Dashboard() {
               </figure>
             </div>
 
+              </>
+            )}
+
+            {selectedTab === "wch-family" && (
+              <>
             {/* Family planning + premarital screening */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="surface-panel rounded-2xl p-6 animate-fadeInUp">
@@ -1826,10 +1941,10 @@ export default function Dashboard() {
                 <figure role="group" aria-label="IUCD and Implanon uptake percentages per year, 2018 to 2025">
                   <ResponsiveContainer width="100%" height={barChartH}>
                     <BarChart data={contraceptionTrend} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                      <CartesianGrid vertical={false} stroke={chart.grid} />
                       <XAxis dataKey="year" tick={axisTick} />
                       <YAxis tick={axisTick} />
-                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                       <Legend wrapperStyle={{ color: chart.axis }} />
                       <Bar dataKey="iucd" fill={chart.c4} name="IUCD %" radius={[6, 6, 0, 0]} />
                       <Bar dataKey="implanon" fill={chart.c6} name="Implanon %" radius={[6, 6, 0, 0]} />
@@ -1848,10 +1963,10 @@ export default function Dashboard() {
                 <figure role="group" aria-label="Number of people screened premaritally per year, 2019 to 2025">
                   <ResponsiveContainer width="100%" height={barChartH}>
                     <BarChart data={premaritalScreeningTrend} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                      <CartesianGrid vertical={false} stroke={chart.grid} />
                       <XAxis dataKey="year" tick={axisTick} />
                       <YAxis tick={axisTick} />
-                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                       <Bar dataKey="value" fill={chart.c1} name="People screened" radius={[8, 8, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -1864,16 +1979,21 @@ export default function Dashboard() {
               </div>
             </div>
 
+              </>
+            )}
+
+            {selectedTab === "wch-child" && (
+              <>
             {/* ASD developmental screening */}
             <div className="surface-panel rounded-2xl p-8 animate-fadeInUp">
               <h3 className="text-xl font-bold text-foreground mb-6">ASD Developmental Screening Coverage (%)</h3>
               <figure role="group" aria-label="Autism screening coverage at 18 and 24 months per year">
                 <ResponsiveContainer width="100%" height={areaChartH}>
                   <LineChart data={asdScreeningTrend} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                    <CartesianGrid vertical={false} stroke={chart.grid} />
                     <XAxis dataKey="year" tick={axisTick} />
                     <YAxis domain={[80, 100]} tick={axisTick} />
-                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                    <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                     <Legend wrapperStyle={{ color: chart.axis }} />
                     <Line
                       type="monotone"
@@ -1909,10 +2029,10 @@ export default function Dashboard() {
                 <figure role="group" aria-label="Reported child maltreatment cases per year, 2019 to 2025">
                   <ResponsiveContainer width="100%" height={barChartH}>
                     <BarChart data={childMaltreatmentTrend} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                      <CartesianGrid vertical={false} stroke={chart.grid} />
                       <XAxis dataKey="year" tick={axisTick} />
                       <YAxis tick={axisTick} />
-                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                       <Bar dataKey="value" fill={chart.c5} name="Cases" radius={[8, 8, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -1932,10 +2052,10 @@ export default function Dashboard() {
                       data={maltreatmentByType}
                       margin={{ top: 10, right: 10, bottom: 60, left: 10 }}
                     >
-                      <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} />
+                      <CartesianGrid vertical={false} stroke={chart.grid} />
                       <XAxis dataKey="type" angle={-35} textAnchor="end" height={70} interval={0} tick={axisTick} />
                       <YAxis tick={axisTick} />
-                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} />
+                      <Tooltip contentStyle={tooltipStyle} labelStyle={{ color: chart.tipText }} cursor={chartCursor} />
                       <Legend wrapperStyle={{ color: chart.axis }} />
                       <Bar dataKey="y2024" fill={chart.c1} name="2024" radius={[6, 6, 0, 0]} />
                       <Bar dataKey="y2025" fill={chart.c2} name="2025" radius={[6, 6, 0, 0]} />
@@ -1949,6 +2069,8 @@ export default function Dashboard() {
                 </figure>
               </div>
             </div>
+              </>
+            )}
           </div>
         )}
       </main>
@@ -1962,7 +2084,7 @@ export default function Dashboard() {
               <p className="text-sm mt-1">LMWH Monitoring System - Maternal VTE Risk Assessment</p>
             </div>
             <div className="flex items-center space-x-6 text-muted-foreground">
-              <span className="text-sm">Data Period: 2023-2024</span>
+              <span className="text-sm">Data Period: VTE 2023–2024 · WCH 2019–2025</span>
               <span className="text-sm">Total Records: 5,754</span>
               <span className="text-sm">7 Health Centers</span>
             </div>
